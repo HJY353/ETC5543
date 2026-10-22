@@ -1,0 +1,51 @@
+/*-- scss:defaults --*/
+$font-family-sans-serif: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+$headings-font-family: "Source Serif 4", Georgia, serif;
+$primary: #1f2a44;
+$link-color: #1d6fa5;
+$body-color: #222;
+$font-size-root: 17px;
+$line-height-base: 1.65;
+
+/*-- scss:rules --*/
+@import url("https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&family=Source+Serif+4:wght@500;600&display=swap");
+
+.quarto-title-banner {
+  background: linear-gradient(120deg, #1f2a44 0%, #2f4a6d 100%);
+}
+
+h2 {
+  margin-top: 2.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid #e3e7ee;
+}
+
+h3 {
+  margin-top: 1.8rem;
+  color: #2f4a6d;
+}
+
+.abstract {
+  background: #f5f7fa;
+  border-left: 4px solid #2f4a6d;
+  padding: 1rem 1.25rem;
+  border-radius: 4px;
+}
+
+figure img {
+  border: 1px solid #e3e7ee;
+  border-radius: 4px;
+}
+
+.figure-caption, figcaption {
+  font-size: 0.9rem;
+  color: #555;
+}
+
+table {
+  font-size: 0.95rem;
+}
+
+thead th {
+  background: #f0f3f7;
+}
