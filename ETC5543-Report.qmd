@@ -1,0 +1,128 @@
+---
+title: "Creating Backburns Dataset with Spatial Analysis"
+subtitle: "ETC5543 – DEECA Internship"
+author:
+  - name: Hendrickson Joewono You
+  - name: Ibtesam Ifaz
+date: 2026-10-22
+date-format: "D MMMM YYYY"
+abstract: |
+  The aim of this project was to clean and organise an existing backburns dataset and develop a reproducible data-processing pipeline that can be applied to future data entries and support further analysis. The Applied Fire Sciences (AFS) team at DEECA supplied 396 backburn records matched to bushfire incidents in the Victorian Wildfire Research Database (VWFRD). There were two main problem with this dataset, some of these backburn entries were matched to the incorrect fire incident, and many of these records describe the same operation more than once. 
+  
+  To reassign mismatched backburns, we first flagged records with suspicious spatial or temporal relationships to their assigned fire incidents. Backburns more than 10km from the associated fire or occuring outside the recorded active-fire period were flagged as pontetial mismatches. For each flagged backburn, alternative fire incidents were identified and compared spatially, the backburn is reassigned only when a closer and more plausible candidate fire was found. This reduced the number of flagged mismatches form 108 to 66, most successful corrections were initially spatial mismatches rather than date-related inconsistencies. 
+  
+  The next stage of the project focused on identifying backburn records that may represent the same or closely related operations. A line may be logged first as planned and later as completed, redrawn as it is extended, or mapped again from a different source. We grouped similar records by drawing an artificial band, or buffer, around each backburn line and measuring how these bands overlap. Two scores were calculated for every pair of lines. Buffered Intersection over Union (IoU) measures the area two bands share relative to their combined area. Directional coverage measures how much of one line falls inside the other's band, in both directions, and keeps the larger value. IoU is simple to interpret but scores low when one line is a short subset of another. Coverage fixes that weakness, and a length ratio helps tell a subset apart from a true duplicate. Pairs scoring above 5% on both measures were linked, and linked pairs were chained into groups recorded in a new `group_id` field.
+
+  The number of groups depends on the buffer width. A 100 m buffer produced 104 groups, a 200 m buffer produced 80 and a 500 m buffer produced 54. Wider bands raise pairwise scores and merge more records, so buffer width is the main tuning decision. The final method used a 100 m buffer, which merges clear duplicates while keeping nearby lines from separate operations apart.
+  
+bibliography: references.bib
+link-citations: true
+format:
+  html:
+    theme: [cosmo, styles.scss]
+    title-block-banner: true
+    toc: true
+    toc-location: left
+    toc-depth: 3
+    toc-title: "Contents"
+    number-sections: true
+    number-depth: 2
+    embed-resources: true
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    reference-location: margin
+    smooth-scroll: true
+  typst:
+    citeproc: true
+    papersize: a4
+    margin:
+      x: 2.2cm
+      y: 2.4cm
+    toc: true
+    number-sections: true
+    number-depth: 2
+    fontsize: 11pt
+    fig-cap-location: bottom
+---
+## Introduction
+
+This report presents a data-quality project undertaken as part of an internship with the Department of Energy, Environment and Climate Action (DEECA). The project focuses on improving the reliability of an existing backburn dataset through spatial and temporal analysis, with the goal of developing a more systematic and reproducible approach to data cleaning and validation. The aim of this project is to provide AFS with a comprehensive backburn dataset to support future analysis of backburn effectiveness using topography, elevation, weather, and wind data.
+
+This document provides an overview of the initial data, methodology applied, and the results and limitations of the approaches developed throughout this project.
+
+## Organisation and Project Context
+
+This internship was provided to us through DEECA. The Department of Energy, Environment and Climate Action is a government department in Victoria, responsible for managing the state's energy, environment, water, agriculture, forestry, climate action, and public land resources. One of their key responsibilities is reducing the impacts of bushfire, mainly on people, property, and the environment.
+
+Within DEECA, Bushfire and Forest Services (BFS) plays a central role in managing approximately 3.2 million hectares of public forest all across Victoria. Their work ranges from public land law enforcement, preservation of communities and cultural values to bushfire prevention, preparedness, and response. 
+
+This internship project is positioned within the Knowledge Planning and Risk team of BFS. In this project we focus specifically on improving the quality and reliability of an existing backburn dataset to support future analysis. The project therefore contributes to the broader bushfire-management function by developing a reproducible pipeline for validating and cleaning backburn records, providing a stronger foundation for future spatial and operational analysis of backburning and its effectiveness. The work was carried out for the Applied Fire Sciences (AFS) team, which uses spatial data and fire records to study how fires behave and how suppression tactics perform.
+
+## Background
+
+### 3.1 How Victoria is divided for fire management
+
+For fire and fuel management, DEECA divides Victoria into six regions: Barwon South West, Gippsland, Grampians, Hume, Loddon Mallee and Port Phillip, each split into districts. CFA uses five regions of its own [@jfmp2025]. The regions range from semi-arid mallee in Loddon Mallee to wet forest in Port Phillip and alpine country in Hume, and these differences shape where and how backburning is used [@penman2025].
+
+The Grampians region is also where the duplicate problem was most visible. The national park has burnt in consecutive seasons, and backburns from different fires often follow the same roads, tracks and ridgelines.
+
+### 3.2 DEECA and CFA working together
+
+Bushfires often spread across both public and private land. A fire that starts in a state forest can run into farmland and towns, and one that starts on private land can move into a national park. Victoria's two main fire agencies, DEECA (through FFMVic) and CFA, therefore plan and respond together.
+
+The legislative split is based on distance from public land. Burns on public land, or within 1.5 km of it, fall within DEECA's scope; further out, CFA is the lead agency. Under the Safer Together program, the two agencies prepare a Joint Fuel Management Program for each region, share staff, equipment and training, and build strategic fuel break networks across public and private land [@safertogether; @jfmp2025]. @penman2025 drew their expert panel from both agencies, because the people who decide where and when to backburn come from CFA and DEECA alike.
+
+This collaboration is central to backburn data. During a large fire, a backburn may be planned by one agency, lit by crews from another and mapped by a third party. Each step can create its own record. That shared, multi-agency workflow is one likely reason the same backburn appears more than once in the dataset, and it is why a clean, deduplicated record is useful to both agencies.
+
+### 3.3 Managing Bushfires in Victoria
+
+Bushfires are a common seasonal feature in Australian landscape and present significant risk to people, infrastructure, and the environment including its natural resources. Bushfire management generally involves a combination of prevention and preparation activities to minimize the impact of these fires. The effectiveness of these activities vary considerably depending on environmental and operational conditions, including vegetation, fuel density, terrain, weather, and many more. 
+
+Bushfire management does not follow a single intervention, often a range of approaches may be used before and during bushfire events. These include planned fuel reductions burns, Construction of strategic fuel breaks, and backburning. While these approaches all involve the management of vegetation and fuel, they differ in their objectives, timing, and operational application. This report focuses specifically on backburning, a fire-suppression technique undertaken in response to an active bushfire.
+
+
+### 3.4 What is Backburning 
+
+Backburning is a fire suppression technique used in response to an active bushfire. Backburning involves deliberately lighting a fire close to the edge of an existing bushfire to consume the fuel between the bushfire and an established control line. Backburning can stop the bushfire from spreading and create conditions that allow firefighters to complete suppression activities safely.
+
+Backburning generally requires an existing or constructed control line from which the fire can safely be ignited. Control lines can be in the form of dirt tracks, water bodies, SFBs, or other natural and constructed landscape features. In the case where an appropriate boundary does not exist, machinery or hand tools may be used to create one. Aerial ignition may also be used to support backburning where appropriate. 
+
+Although both backburning and fuel reduction burning involve the deliberate use of fire to remove fuel, they serve different operational purposes. Fuel reduction burns are conducted in advance under planned conditions, in comparison, backburning is a response to an active bushfire and may have to be undertaken across a wider range of environmental conditions.
+
+Like fuel reduction burns, backburning introduces its own set of operational risks. The technique deliberately introduces additional fire during conditions that may already support bushfire spread, an escaped backburn can increase the total area that requires containment. Experienced personnel, appropriate resources, suitable weather conditions, and careful planning are of the utmost importance for its safe application. Planning opportunities may also need to be identified early during a fire because executing a backburn takes time. 
+
+It is also important to highlight the ecological trade-offs of backburning. Wildlife which can normally flee a fire front can become trapped between an advancing bushfire and a backburn. Backburning can also lead to the destruction of fire-sensitive biological communities. Unfortunately, ecologically vulnerable areas have previously been sacrificed to protect lives and property. Decisions regarding backburning therefore is a huge balancing act between protecting human life and property, achieving suppression objectives, and reducing environmental impacts.
+
+### 3.5 Operational Challenges and Effectiveness of Backburning
+
+Backburning is effective when it works, but it is one of the riskiest suppression tactics. The Tasmania Parks and Wildlife Service [@parkstas] and the sources above identify several challenges:
+
+- **Escape.** A backburn that escapes adds to the area that must be contained, and can make the fire worse.
+- **Crew safety.** Firefighters light fire under bushfire conditions, close to an active fire front.
+- **Experience and resources.** Safe backburning needs experienced personnel and many crews and appliances at once.
+- **A suitable control line.** The burn must be lit from a break such as a track, river or paddock. Where none exists, building one takes time, and hand-built lines are narrower and riskier.
+- **Weather.** Suitable conditions must hold for the whole operation and line up with resource availability. @penman2025 found that the likelihood of using a fuel break for suppression falls as fire danger rises, partly because backburning from it becomes harder.
+- **Timing.** Planning takes time, so options must be identified early. Incident teams also tend to avoid backburning because it temporarily makes the fire bigger.
+- **Ecological cost.** Backburns can trap wildlife, burn unburnt refuges and damage fire-sensitive vegetation.
+
+Every one of these challenges is shaped by place: the terrain, the fuel, the wind and the condition of the control line.
+
+These factors mean the effectiveness of a backburn cannot be assessed from the backburn record alone. Instead, its spatial and temporal relationship with the associated bushfire, together with environmental conditions at the time and place of the event, needs to be considered. Therefore, it is important to maintain accurate records of backburn operations and the fire incidents each backburn is associated to. 
+
+### 3.6 Spatial Nature of Backburning
+
+Backburning is inherently spatial, the location of a backburn must be considered in relation to the active bushfire, surrounding fuel, control lines, and other environmental features. A backburn is generally conducted from a control line with the intention of removing fuel between that line and the advancing bushfire. With these spatial relationships in mind, Analyzing backburn records becomes much more systematic. A backburn located a considerable distance from its associated fire indicates a potential mismatch and would require further investigation, while multiple backburn records with highly similar or overlapping geometries may represent the same operation. Geospatial analysis provides us with the necessary tools and methods for identifying inconsistencies and validating these backburn records.
+
+### 3.7 Importance of Reliable Backburn Data
+
+Despite how often backburns are used, there is little empirical evidence on how well they work. @penman2025 note that it is hard to separate the effect of fuel breaks from ongoing suppression activity, that data are rarely collected during extreme fire weather, and that current suppression models do not capture decisions such as night-time backburning. Fire managers therefore rely largely on experience and expert judgement when choosing where and when to backburn.
+
+Reliable historic backburn data is important for understanding how backburning has been used in the past and how effective it was during a bushfire. Inaccurate fire associations and duplicate records would affect subsequent analysis and result in misleading conclusions. Development of a systematic pipeline in advance to validate and clean these backburn records is therefore important before resources are allocated towards more detailed analysis. A consistent and reliable dataset provides a stronger foundation for examining the relationship between backburning and factors such as fire severity, weather, terrain, and other environmental features as well as various operational challenges. The long-term goal is to help DEECA and CFA plan backburns that are more likely to succeed and less likely to cause harm.
+
+## Goals
+
+## Methodology
+
+## Results
+
+## Conclusions of your analysis

@@ -1,0 +1,189 @@
+---
+title: "Creating Backburns Dataset with Spatial Analysis"
+subtitle: "ETC5543 – DEECA Internship"
+author: "Hendrickson Joewono You & Ifaz Ibtesam"
+format:
+  revealjs:
+    theme: default
+    slide-number: true
+    code-overflow: wrap
+    include-in-header:
+      text: |
+        <style>
+        .reveal table { font-size: 0.75em; }
+        </style>
+---
+
+## About DEECA {.smaller}
+
+- Supporting thriving, productive and sustainable communities, environments and industries.
+- Key responsibilities:
+  - Land and environment management
+  - Bushfire management
+  - Climate and energy policy
+- DEECA → Bushfire and Forest Services (BFS)
+- Role of BFS:
+  - Protect Victorian state forests and tourism sites
+  - Bushfire prevention, preparation, and response
+  - Preserve communities and culture
+- BFS → Knowledge Planning & Risk (KPR)
+
+## What is Backburning?
+
+- A fire-suppression technique used during an active bushfire
+- How it works:
+  - Light a fire along a control line
+  - Removes fuel in the path of the fire
+  - Reduces fire spread and impact
+  - Creates safe environment to fight fire
+- Requires careful planning as many risks involved
+
+## Problem Overview {.smaller}
+
+**Background**
+
+- Received a dataset containing **396 backburns matched to bushfire incidents**.
+
+**Problem 1: Incorrect Fire Association**
+
+- Some backburns matched to the wrong fire incident
+- Mismatches can occur due to entry errors, incomplete information, missing updates
+
+**Problem 2: Duplicate/Similar Backburn Records**
+
+- Some backburn operations are presented multiple times in the data
+- Similar or overlapping backburns need to be identified and grouped
+
+**Aim**
+
+- Provide AFS with a comprehensive backburn dataset to support future analysis of backburn effectiveness using topography, elevation, weather, and wind data.
+
+## Dataset Variables {.smaller}
+
+| Column name | Type | Description |
+|:------------|:-----|:------------|
+| `eMap_obs_date` | datetime | Date of backburn observation |
+| `backburn_geometry` | LineString / MultiLineString | Backburn geometry, stored as lines. |
+| `eMap_obs_type` | string | Type of observation (BackburnPlanned or BackburnCompleted). |
+| `vwfrd_id` | int | Fire ID in Victorian Wildfire Research Database (VWFRD). |
+| `vwfrd_fire_name` | string | Fire name in VWFRD. |
+| `reported_time` | datetime | Time that the fire was first reported. |
+| `under_control_time` | datetime | Time that the fire was deemed under control |
+| `stop_time` | datetime | Time that the fire was stopped/extinguished |
+| `Incident_geometry` | Polygon / MultiPolygon | Final fire polygon |
+| `distance` | float | The minimum distance between a backburn and the fire it is linked to. |
+
+## Reassignment Algorithm {.smaller}
+
+1. Start with the backburns and fires dataset
+2. Check each backburn for a mismatch
+   - Date mismatch: `reported_time > obs_date` or `obs_date > under_control_time`
+   - Location mismatch: `distance > 10 km`
+3. If flagged, find fires that were active when the backburn occurred (`reported_time ≤ obs_date ≤ stop_time`)
+4. Calculate distance to each candidate fire (polygon/point)
+5. Select the nearest candidate fire
+6. Is the candidate fire closer to the backburn (`new distance < current distance`)?
+   - Yes: reassign the backburn to the candidate fire
+
+## Step 1: Flagging Mismatches {.smaller}
+
+- There are two ways to identify a mismatch: **location** and **time**
+  - If distance of backburn to fire is more than the threshold (10 km), we flag as "location mismatch"
+  - If date of backburn is not within the date range of the active fire, we flag as "date mismatch"
+
+```python
+# Location mismatch
+backburns_df["location_mismatch"] = (backburns_df["distance"] > distance_threshold)
+
+# Date mismatch
+backburns_df["date_mismatch"] = (
+    (backburns_df["eMap_obs_date"] < backburns_df["reported_time"]) |
+    (backburns_df["eMap_obs_date"] > backburns_df["under_control_time"]))
+```
+
+|       | location_mismatch | date_mismatch | any_mismatch |
+|:------|------------------:|--------------:|-------------:|
+| False | 339 | 342 | 288 |
+| True  | 57  | 54  | 108 |
+
+- **396 entries, 108 backburns are flagged as a mismatch**
+
+## Step 2: Attempt to reassign flagged backburns
+
+- For each backburn flagged as a mismatch, take the following steps:
+  - Create list of candidate fire incidents
+  - Calculate distance of incidents to backburn
+  - From the list, select the closest incident
+  - Reassign only if candidate incident is closer
+
+## Example: Date & Location Mismatch {.smaller}
+
+- Backburn observation date almost a year after the fire
+- Backburn is 46,184 m from the fire it was linked to
+
+**Initial match**
+
+| eMap_obs_type | eMap_obs_date | vwfrd_fire_name | reported_time | under_control_time | distance |
+|:--|--:|--:|--:|--:|--:|
+| BackburnPlanned | 2025-03-10 | MACALISTER 57 - BRIAGOLONG - BLUE POOL | 2024-03-31 | 2024-03-31 | 46184.820992 |
+
+**Candidate match (reassigned)**
+
+| eMap_obs_type | eMap_obs_date | vwfrd_fire_name | reported_time | under_control_time | distance |
+|:--|--:|--:|--:|--:|--:|
+| BackburnPlanned | 2025-03-10 | MACALISTER 57 - LICOLA - MT MARGARET TK | 2025-02-23 | 2025-03-16 | 408.804552 |
+
+## Results and Limitation {.smaller}
+
+- Previously, **108 of 396 backburns** were flagged as a potential mismatch.
+- After reassignment, **66 backburns remained flagged**, reducing the number of mismatches by **39%**.
+- Most **location mismatches** were successfully reassigned to a more appropriate fire.
+- Most remaining mismatches were **date-related rather than spatial-related**.
+- **Limitation**: Fire status records do not always capture changes in fire behaviour. Some backburns may occur after a fire is marked *Under Control*, resulting in false-positive date mismatches.
+
+## Problem 2: Duplicate Backburns
+
+- Some backburn operations appear more than once, as similar or overlapping lines
+- Examples:
+  - Little Desert National Park in 2025
+  - Grampians National Park in 2024
+  - Grampians National Park in 2025
+
+## Method 1: Buffered IoU
+
+- IoU (Intersection over Union)
+- Calculates area of intersection
+- Scores each pair between 0 and 1
+- Steps:
+  1. Take two backburn lines
+  2. Buffer each line by 4 m
+  3. IoU = intersection / union
+
+## Method 2: Directional Coverage
+
+- Buffers one backburn and scores how much of the other's length falls inside
+- Repeats in the other direction
+- Takes the max of the two
+- Example:
+  - How much of A runs inside B's buffer? 54% of A covered
+  - How much of B runs inside A's buffer? 100% of B covered
+
+## A combination of both methods
+
+- How to assign each backburn to a group?
+  - Compare every pair of backburns against one another
+  - Score each pair with both IoU and directional coverage (100 m buffer)
+  - Link pairs with IoU and coverage scores above 5%
+  - Linked pairs are chained into groups
+  - Assign each backburn to a group through the newly created variable **`group_id`**
+
+## Results
+
+- 104 groups assigned on a 100 m buffer
+- 80 groups for a 200 m buffer
+- 54 groups for a 500 m buffer
+
+**Limitations**
+
+- Buffer size drives the results
+- Only considers geometry
