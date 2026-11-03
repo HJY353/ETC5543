@@ -7,9 +7,9 @@ author:
 date: 2026-10-22
 date-format: "D MMMM YYYY"
 abstract: |
-  The aim of this project was to clean and organise an existing backburns dataset and develop a reproducible data-processing pipeline that can be applied to future data entries and support further analysis. The Applied Fire Sciences (AFS) team at DEECA supplied 396 backburn records matched to bushfire incidents in the Victorian Wildfire Research Database (VWFRD). There were two main problem with this dataset, some of these backburn entries were matched to the incorrect fire incident, and many of these records describe the same operation more than once. 
+  The aim of this project was to clean and organise an existing backburns dataset and develop a reproducible data-processing pipeline that can be applied to future data entries and support further analysis. The Applied Fire Sciences (AFS) team at DEECA supplied 396 backburn records matched to bushfire incidents in the Victorian Wildfire Research Database (VWFRD). There were two main problems with this dataset, some of these backburn entries were matched to the incorrect fire incident, and many of these records describe the same operation more than once. 
   
-  To reassign mismatched backburns, we first flagged records with suspicious spatial or temporal relationships to their assigned fire incidents. Backburns more than 10km from the associated fire or occuring outside the recorded active-fire period were flagged as pontetial mismatches. For each flagged backburn, alternative fire incidents were identified and compared spatially, the backburn is reassigned only when a closer and more plausible candidate fire was found. This reduced the number of flagged mismatches form 108 to 66, most successful corrections were initially spatial mismatches rather than date-related inconsistencies. 
+  To reassign mismatched backburns, we first flagged records with suspicious spatial or temporal relationships to their assigned fire incidents. Backburns more than 10km from the associated fire or occurring outside the recorded active-fire period were flagged as potential mismatches. For each flagged backburn, alternative fire incidents were identified and compared spatially, the backburn is reassigned only when a closer and more plausible candidate fire was found. This reduced the number of flagged mismatches from 108 to 66, most successful corrections were initially spatial mismatches rather than date-related inconsistencies. 
   
   The next stage of the project focused on identifying backburn records that may represent the same or closely related operations. A line may be logged first as planned and later as completed, redrawn as it is extended, or mapped again from a different source. We grouped similar records by drawing an artificial band, or buffer, around each backburn line and measuring how these bands overlap. Two scores were calculated for every pair of lines. Buffered Intersection over Union (IoU) measures the area two bands share relative to their combined area. Directional coverage measures how much of one line falls inside the other's band, in both directions, and keeps the larger value. IoU is simple to interpret but scores low when one line is a short subset of another. Coverage fixes that weakness, and a length ratio helps tell a subset apart from a true duplicate. Pairs scoring above 5% on both measures were linked, and linked pairs were chained into groups recorded in a new `group_id` field.
 
@@ -303,7 +303,7 @@ This step ensures all variables derived from the associated fire incident remain
 
 ![Example of backburn flagged as a temporal and spatial mismatch](images/before_reassignment.png){#fig-mismatched-backburn width=100%}
 
-@fig-mismatched-backburn shows a backburn originally matched to MACALISTER 57 - BRIAGOLONG - BLUE POOL, resulting in a distance of approximately 42 km between the backburn and the fire. This large distance caused the record to be flagged as a potential location mismatch. In addition, this backburn also occurred almost a year after the fire’s recorded under control date, which also makes it a date mismatch. 
+@fig-mismatched-backburn shows a backburn originally matched to MACALISTER 57 - BRIAGOLONG - BLUE POOL, resulting in a distance of approximately 46 km between the backburn and the fire. This large distance caused the record to be flagged as a potential location mismatch. In addition, this backburn also occurred almost a year after the fire’s recorded under control date, which also makes it a date mismatch. 
 
 ![Example of the same backburn reassigned](images/after_reassignment.png){#fig-reassigned-backburn width=100%}
 
@@ -318,16 +318,15 @@ library(tibble)
 library(knitr)
 
 reassignment_table <- tribble(
-  ~Match,             ~Observation_Type, ~Observation_Date, ~Fire_Name,                                    ~Reported_Time, ~Under_Control_Time, ~Distance_m,
-  "Initial match",    "BackburnPlanned",  "2025-03-10",      "MACALISTER 57 - BRIAGOLONG - BLUE POOL",       "2024-03-31",   "2024-03-31",        46184.82,
-  "Candidate match",  "BackburnPlanned",  "2025-03-10",      "MACALISTER 57 - LICOLA - MT MARGARET TK",      "2025-02-23",   "2025-03-16",          408.80
+  ~Match,           ~Observation_Date, ~Fire_Name,                                    ~Reported_Time, ~Under_Control_Time, ~Distance_m,
+  "Initial match",  "2025-03-10",      "MACALISTER 57 - BRIAGOLONG - BLUE POOL",       "2024-03-31",   "2024-03-31",        46184.82,
+  "Candidate match",  "2025-03-10",      "MACALISTER 57 - LICOLA - MT MARGARET TK",      "2025-02-23",   "2025-03-16",          408.80
 )
 
 kable(
   reassignment_table,
   col.names = c(
     "Match",
-    "Observation type",
     "Observation date",
     "Fire name",
     "Reported time",
@@ -454,7 +453,7 @@ This section presents outcomes and limitations of the data-cleaning procedures d
 
 ### 6.1 Fire Association Validation and Reassignment
 
-Following validation procedures described in section @sec-ida, a total of 108 backburn records were flagged for further review. These records were subsequently assessed using the reassignment procedure described in section @sec-reassignment.
+Following validation procedures described in @sec-ida, a total of 108 backburn records were flagged for further review. These records were subsequently assessed using the reassignment procedure described in section @sec-reassignment.
 
 #### 6.1.1 Reassignment Results
 
@@ -485,7 +484,7 @@ kable(
   align = "lrr"
 )
 ```
-The reassignment workflow successfully reduced the number of flagged records from 109 to 66. Most successful corrections were associated with spatial mismatches, where an alternative active fire was substantially closer to the backburn then the original assignment. In contrast, a larger proportion of temporal mismatches remained unresolved. In some cases, a record that was originally flagged as a location mismatch was reassigned to a much closer fire, resolving the spatial inconsistency, but later became flagged as a date mismatch.
+The reassignment workflow successfully reduced the number of flagged records from 108 to 66. Most successful corrections were associated with spatial mismatches, where an alternative active fire was substantially closer to the backburn then the original assignment. In contrast, a larger proportion of temporal mismatches remained unresolved. In some cases, a record that was originally flagged as a location mismatch was reassigned to a much closer fire, resolving the spatial inconsistency, but later became flagged as a date mismatch.
 
 #### 6.1.2 Interpretation of Remaining Temporal Mismatches
 
@@ -537,9 +536,9 @@ This is the main remaining risk for repeat-fire landscapes like the Grampians. A
 
 ## Summary and Conclusion
 
-This project developed a reproducible workflow to improve the quality and reliability of an existing backburns dataset by addressing two key issues: incorrect fire association and duplicate backburn records. Spatial and temporal validation initially flagged 108 backburn records for further review. Following reassignment, the number of flagged records was reduced to 66, with location mismatches decreasing from 57 to 7. The second staged used buffered Intersection over Union (IoU) and directional coverage to identify and group similar backburn records. Using a 100 m buffer, the 396 records were organised into 104 groups, providing a more structured dataset in which related observations can be considered together.
+This project developed a reproducible workflow to improve the quality and reliability of an existing backburns dataset by addressing two key issues: incorrect fire association and duplicate backburn records. Spatial and temporal validation initially flagged 108 backburn records for further review. Following reassignment, the number of flagged records was reduced to 66, with location mismatches decreasing from 57 to 7. The second stage used buffered Intersection over Union (IoU) and directional coverage to identify and group similar backburn records. Using a 100 m buffer, the 396 records were organised into 104 groups, providing a more structured dataset in which related observations can be considered together.
 
-These methods provide a more systematic basis for validating, cleaning, and organizing backburn records and can be applied to future data entries. However, results remain dependent on factors such as the quality of VWFRD incident information, the selected buffer width, similarity thresholds, and temporal validation rules. Future work should validate tehse settings against manually reviewed records. Overall, the cleaned dataset provides AFS with a stronger foundation for future analysis of backburning and its effectiveness. 
+These methods provide a more systematic basis for validating, cleaning, and organizing backburn records and can be applied to future data entries. However, results remain dependent on factors such as the quality of VWFRD incident information, the selected buffer width, similarity thresholds, and temporal validation rules. Future work should validate these settings against manually reviewed records. Overall, the cleaned dataset provides AFS with a stronger foundation for future analysis of backburning and its effectiveness. 
 
 ## Repositories
 
