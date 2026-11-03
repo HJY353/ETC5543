@@ -1,20 +1,19 @@
 ---
-title: "Creating Backburns Dataset with Spatial Analysis"
+title: "Creating a Backburn Dataset with Spatial Analysis"
 subtitle: "ETC5543 – DEECA Internship"
 author:
   - name: Hendrickson Joewono You
   - name: Ibtesam Ifaz
 date: 2026-10-22
 date-format: "D MMMM YYYY"
+abstract-title: "Abstract"
 abstract: |
-  The aim of this project was to clean and organise an existing backburns dataset and develop a reproducible data-processing pipeline that can be applied to future data entries and support further analysis. The Applied Fire Sciences (AFS) team at DEECA supplied 396 backburn records matched to bushfire incidents in the Victorian Wildfire Research Database (VWFRD). There were two main problems with this dataset, some of these backburn entries were matched to the incorrect fire incident, and many of these records describe the same operation more than once. 
-  
-  To reassign mismatched backburns, we first flagged records with suspicious spatial or temporal relationships to their assigned fire incidents. Backburns more than 10km from the associated fire or occurring outside the recorded active-fire period were flagged as potential mismatches. For each flagged backburn, alternative fire incidents were identified and compared spatially, the backburn is reassigned only when a closer and more plausible candidate fire was found. This reduced the number of flagged mismatches from 108 to 66, most successful corrections were initially spatial mismatches rather than date-related inconsistencies. 
-  
-  The next stage of the project focused on identifying backburn records that may represent the same or closely related operations. A line may be logged first as planned and later as completed, redrawn as it is extended, or mapped again from a different source. We grouped similar records by drawing an artificial band, or buffer, around each backburn line and measuring how these bands overlap. Two scores were calculated for every pair of lines. Buffered Intersection over Union (IoU) measures the area two bands share relative to their combined area. Directional coverage measures how much of one line falls inside the other's band, in both directions, and keeps the larger value. IoU is simple to interpret but scores low when one line is a short subset of another. Coverage fixes that weakness, and a length ratio helps tell a subset apart from a true duplicate. Pairs scoring above 5% on both measures were linked, and linked pairs were chained into groups recorded in a new `group_id` field.
+  The aim of this project was to clean and organise an existing backburns dataset and develop a reproducible data-processing pipeline that can be applied to future data entries and support further analysis. The Applied Fire Sciences (AFS) team at DEECA supplied 396 backburn records matched to bushfire incidents in the Victorian Wildfire Research Database (VWFRD). There were two main problems with this dataset, some of these backburn entries were matched to the incorrect fire incident, and many of these records describe the same operation more than once.
 
-  The number of groups depends on the buffer width. A 100 m buffer produced 104 groups, a 200 m buffer produced 80 and a 500 m buffer produced 54. Wider bands raise pairwise scores and merge more records, so buffer width is the main tuning decision. The final method used a 100 m buffer, which merges clear duplicates while keeping nearby lines from separate operations apart.
-  
+  To reassign mismatched backburns, we first flagged records with suspicious spatial or temporal relationships to their assigned fire incidents. Backburns more than 10km from the associated fire or occurring outside the recorded active-fire period were flagged as potential mismatches. For each flagged backburn, alternative fire incidents were identified and compared spatially, the backburn is reassigned only when a closer and more plausible candidate fire was found. This reduced the number of flagged mismatches from 108 to 66, most successful corrections were initially spatial mismatches rather than date-related inconsistencies.
+
+  The next stage of the project focused on identifying backburn records that may represent the same or closely related operations. A line may be logged first as planned and later as completed, redrawn as it is extended, or mapped again from a different source. We grouped similar records by drawing an artificial band, or buffer, around each backburn line and measuring how these bands overlap. Two scores were calculated for every pair of lines. Buffered Intersection over Union (IoU) measures the area two bands share relative to their combined area. Directional coverage measures how much of one line falls inside the other's band, in both directions, and keeps the larger value. The number of groups depends on the buffer width. A 100 m buffer produced 104 groups, a 200 m buffer produced 80 and a 500 m buffer produced 54.
+
 bibliography: references.bib
 link-citations: true
 
@@ -35,6 +34,13 @@ format:
     smooth-scroll: true
 
   pdf:
+    classoption: [titlepage=true, abstract=true]
+    include-in-header:
+      text: |
+        \usepackage{xpatch}
+        \makeatletter
+        \xpatchcmd{\maketitle}{\vskip \z@ \@plus3fill}{\vskip 3em}{}{}
+        \makeatother
     citeproc: true
     papersize: a4
     geometry:
@@ -51,6 +57,7 @@ format:
     fig-cap-location: bottom
     tbl-cap-location: top
 ---
+
 ## Introduction
 
 This report presents a data-quality project undertaken as part of an internship with the Department of Energy, Environment and Climate Action (DEECA). The project focuses on improving the reliability of an existing backburn dataset through spatial and temporal analysis, with the goal of developing a more systematic and reproducible approach to data cleaning and validation. The aim of this project is to provide AFS with a comprehensive backburn dataset to support future analysis of backburn effectiveness using topography, elevation, weather, and wind data.
@@ -66,6 +73,8 @@ Within DEECA, Bushfire and Forest Services (BFS) plays a central role in managin
 This internship project is positioned within the Knowledge Planning and Risk team of BFS. In this project we focus specifically on improving the quality and reliability of an existing backburn dataset to support future analysis. The project therefore contributes to the broader bushfire-management function by developing a reproducible pipeline for validating and cleaning backburn records, providing a stronger foundation for future spatial and operational analysis of backburning and its effectiveness. The work was carried out for the Applied Fire Sciences (AFS) team, which uses spatial data and fire records to study how fires behave and how suppression tactics perform.
 
 ## Background
+
+Backburning has a long history in Victoria, with colonial writers in the 1800s already describing backburning and firebreaks as ways to save homes from bushfire. This section outlines how fire management is organised in Victoria, what backburning involves, and why reliable records of it matter.
 
 ### 3.1 How Victoria is divided for fire management
 
@@ -140,9 +149,11 @@ The dataset used in this project contains 396 backburn records matched to bushfi
 ### 4.2 Variables and Data Structure
 
 ```{r}
-#| echo: false
 #| label: tbl-vars
-#| tbl-cap: "Variables included in the backburns dataset."
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: Variables included in the backburns dataset.
 
 library(knitr)
 library(tibble)
@@ -346,6 +357,7 @@ This section of the report covers the second problem: the same backburn appearin
 
 ![Overlapping backburn records in Little Desert National Park (2025, left) and Grampians National Park (2024, centre; 2025, right). Several lines trace the same route with small offsets.](images/fig1-duplicate-backburns.png){#fig-duplicates fig-alt="Three maps showing duplicate and overlapping backburn lines in Little Desert and Grampians National Parks"}
 
+
 The task was to decide, for every pair of records, whether they describe the same backburn, and then to assign each record to a group.
 
 #### 5.3.1 Using a Buffer instead of a Radius
@@ -374,7 +386,7 @@ $$ {#eq-iou}
 
 The score runs from 0 (no overlap) to 1 (identical corridors).
 
-![Buffered IoU. Two lines (left) are buffered (centre), and the shared area is divided by the combined area (right). In this illustration the score is 0.39.](images/fig2-iou-schematic.jpeg){#fig-iou-schematic fig-alt="Schematic of buffered IoU with two lines, their buffers, and the intersection over the union"}
+![Buffered IoU. Two lines (left) are buffered (centre), and the shared area is divided by the combined area (right).](images/fig2-iou-schematic.jpeg){#fig-iou-schematic fig-alt="Schematic of buffered IoU with two lines, their buffers, and the intersection over the union"}
 
 IoU was chosen first for its simplicity. It is symmetric, so the score for A against B equals the score for B against A. It produces one number per pair on a fixed scale, and it is easy to explain to people who do not work with spatial data.
 
@@ -546,6 +558,9 @@ The code and supporting materials developed for this project are available in th
 
 - [ETC5543 Project Repository](https://github.com/HJY353/ETC5543.git)
 - [DEECA Backburn Dataset Repository]( https://github.com/vic-ffm/ds-back-burning-dataset.git)
+
+## AI acknowledgement 
+We used generative AI to create the illustrative figures in Section 5 that demonstrate the two grouping methods, buffered IoU and directional coverage. These figures use simplified example lines, not records from the backburn dataset.
 
 ## References {.unnumbered}
 
