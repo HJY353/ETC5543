@@ -288,6 +288,8 @@ This is the main remaining risk for repeat-fire landscapes like the Grampians. A
 
 Buffer-based grouping turned 396 overlapping backburn records into 104 groups at a 100 m buffer, giving AFS a dataset where each backburn operation can be counted once and linked to a fire. Combining buffered IoU and directional coverage handles both full duplicates and partial records, which neither method handles alone. The result depends on the buffer width, and the clearest next steps are to validate the buffer and threshold against a reviewed sample and to add a time or fire condition to the linking rule. With those steps, the dataset is ready to support the backburn success model described earlier.
 
+This project developed a reproducible workflow to improve the quality and reliability of an existing backburns dataset by addressing two key issues: incorrect fire association and duplicate backburn records. Spatial and temporal validation 
+
 # References {.unnumbered}
 
 ::: {#refs}
